@@ -28,7 +28,7 @@ sequenceDiagram
 
     Browser->Server: POST [https://studies.cs.helsinki.fi/exampleapp/new_note_spa]
     activate Server
-    Server-->Browser: application/json [{content: "HOLAA", date: "2024-04-22T00:22:39.904Z"}]]
+    Server-->Browser: application/json [{content: "HOLAA", date: "2024-04-22T00:22:39.904Z"}]
     deactivate Server
     note right of Browser:The server responds with HTTP status code 201
 ```
