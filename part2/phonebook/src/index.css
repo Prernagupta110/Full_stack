@@ -6,15 +6,6 @@ body {
   min-height: 100vh;
 }
 
-.notification {
-  background: lightgrey;
-  font-size: 20px;
-  border: solid 1px;
-  border-radius: 5px;
-  padding: 10px;
-  margin-bottom: 10px;
-}
-
 h1 {
   font-size: 3.2em;
   line-height: 1.1;

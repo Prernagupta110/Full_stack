@@ -1,42 +1,39 @@
-import React, { useState } from 'react';
-import styles from './index.css';
-import personService from './services/data';
+import React, { useState, useEffect } from 'react'
+import dataService from './services/data';
 
-const Notification = ({ message, type }) => {
+const Filter = ({ newFilterName, setNewFilterName }) => {
+  const handleFilterNameChange =
+      (event) => {
+          console.log(event.target.value)
+          setNewFilterName(event.target.value)
+      }
+
+  return (
+      <form>
+          <div> filter shown with <input value={newFilterName} onChange={handleFilterNameChange} /> </div>
+      </form>)
+}
+const Notification = ({message, type}) => {
   if (message === null) {
     return null;
   }
 
-  const notificationClass =
-    type === 'error' ? styles.error : styles.success;
+  const notificationStyle = {
+    color: type === 'error' ? 'red' : 'green',
+    background: 'lightgrey',
+    fontSize: '20px',
+    borderStyle: 'solid',
+    borderRadius: '5px',
+    padding: '10px',
+    marginBottom: '10px',
+  };
 
   return (
-    <div className={`${styles.notification} ${notificationClass}`}>
+    <div style={notificationStyle}>
       {message}
     </div>
   );
 };
-
-const Filter = () => {
-    const [filterName, setFilterName] = useState('');
-
-    const handleFilterNameChange = (event) => {
-        setFilterName(event.target.value);
-    };
-
-    return (
-        <form>
-            <div>
-                Filter shown with 
-                <input 
-                    value={filterName} 
-                    onChange={handleFilterNameChange} 
-                />
-            </div>
-        </form>
-    );
-};
-
 const PersonForm = ({ newName, newPhone, persons, notification, notificationType, setNewName, setNewPhone, setPersons, setNotification, setNotificationType }) => {
 
   const addPerson =
@@ -50,7 +47,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                   return;
               }
 
-              personService
+              dataService
                   .update(existingPerson.id, { ...existingPerson, number: newPhone })
                   .then((updatedPerson) => {
                       setPersons(persons.map((person) => (person.id !== existingPerson.id ? person : updatedPerson)));
@@ -80,7 +77,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                   number: newPhone,
               }
 
-              personService.create(personObject).then(response => {
+              dataService.create(personObject).then(response => {
                   setPersons(persons.concat(response))
                   setNewName('')
                   setNewPhone('')
@@ -125,13 +122,17 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
   )
 }
 const Persons = ({ newFilterName, setPersons, persons, notification, notificationType, setNotification, setNotificationType }) => {
+  React.useEffect(() => {
+    dataService.getAll().then((response) => {
+      setPersons(response);
+    });
+  }, [setPersons]);
 
   const handleDelete = (id) => {
     if (window.confirm(`Are you sure you want to delete this person`)) {
-      personService
-        .delete_p(id)
+      dataService
+        .deletePerson(id)
         .then(() => {
-
           setPersons(persons.filter((person) => person.id !== id));
 
           setNotification('Person deleted successfully.');
@@ -152,7 +153,7 @@ const Persons = ({ newFilterName, setPersons, persons, notification, notificatio
     }
   };
 
-  if (filterName === '') {
+  if (newFilterName === '') {
     const result = persons.map((person, i) => (
       <div key={i}>
         <p>
@@ -165,7 +166,7 @@ const Persons = ({ newFilterName, setPersons, persons, notification, notificatio
   }
 
   const result = persons
-    .filter((person) => person.name.toLowerCase().includes(filterName))
+    .filter((person) => person.name.toLowerCase().includes(newFilterName.toLowerCase()))
     .map((person, i) => (
       <div key={i}>
         <p>
@@ -177,4 +178,43 @@ const Persons = ({ newFilterName, setPersons, persons, notification, notificatio
 
   return result;
 }
+const App =
+  () => {
+    const [persons, setPersons] = useState([
+      { name: 'Arto Hellas', number: '040-123456', id: 1 },
+      { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
+      { name: 'Dan Abramov', number: '12-43-234345', id: 3 },
+      { name: 'Mary Poppendieck', number: '39-23-6423122', id: 4 }
+    ])
+    const [newName, setNewName] = useState('')
+    const [newPhone, setNewPhone] = useState('')
+    const [newFilterName, setNewFilterName] = useState('')
+    const [notification, setNotification] = useState(null);
+    const [notificationType, setNotificationType] = useState(null);
+    useEffect(() => {
+      console.log('effect')
+      dataService.getAll().then(response => {
+        console.log('promise fulfilled')
+        setPersons(response)
+      })
+    }, [])
+    return (
+      <div>
+        <h2>Phonebook</h2>
+        <Notification message={notification} type={notificationType} />
+        <Filter newFilterName={newFilterName} setNewFilterName={setNewFilterName} />
+
+        <h3>Add a new</h3>
+        <PersonForm
+          newName={newName} newPhone={newPhone} persons={persons} notification={notification} notificationType={notificationType} setNewName={setNewName} setNewPhone={setNewPhone} setPersons={setPersons} setNotification={setNotification} setNotificationType={setNotificationType}
+        />
+
+        <h3>Numbers</h3>
+        <Persons newFilterName={newFilterName} persons={persons} setPersons={setPersons} notification={notification} notificationType={notificationType} setNotification={setNotification} setNotificationType={setNotificationType} />
+      </div>
+    )
+
+
+  }
+
 export default App
