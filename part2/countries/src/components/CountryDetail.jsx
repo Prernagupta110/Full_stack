@@ -42,7 +42,7 @@ const CountryDetail = ({ country }) => {
                     ))}
                 </ul>
             </div>
-            <img src={country.flags.png} alt={`${country.name.common} Flag`} style={{ width: '200px', height: 'auto' }} />
+            < img src={country.flags.png} alt={`${country.name.common} Flag`} style={{ width: '200px', height: 'auto' }} />
 
             {weather && (
                 <div>
@@ -61,6 +61,7 @@ const CountryDetail = ({ country }) => {
                     <p>Wind: {weather.wind.speed} m/s</p>
                 </div>
             )}
+            {loading && <p>Loading weather information...</p>}
         </div>);
 };
 
