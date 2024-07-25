@@ -10,8 +10,6 @@ mongoose.connect(url)
 mongoose.set("strictQuery", false)
 mongoose.connect(url)
 
-// 3.19 name over 3
-// 3.30 number meet requirement 
 const personSchema = new mongoose.Schema({
     name: {
         type: String,
