@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import personService from './components/person';
+import personService from './services/person';
 
 const Filter = ({ newFilterName, setNewFilterName }) => {
   const handleFilterNameChange =
