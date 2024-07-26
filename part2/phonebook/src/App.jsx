@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import dataService from './services/data';
+import personService from './models/person';
 
 const Filter = ({ newFilterName, setNewFilterName }) => {
   const handleFilterNameChange =
@@ -36,8 +36,7 @@ const Notification = ({message, type}) => {
 };
 const PersonForm = ({ newName, newPhone, persons, notification, notificationType, setNewName, setNewPhone, setPersons, setNotification, setNotificationType }) => {
 
-  const addPerson =
-      (event) => {
+  const addPerson = (event) => {
           event.preventDefault()
           const existingPerson = persons.find((person) => person.name === newName);
           if (existingPerson) {
@@ -47,7 +46,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                   return;
               }
 
-              dataService
+              personService
                   .update(existingPerson.id, { ...existingPerson, number: newPhone })
                   .then((updatedPerson) => {
                       setPersons(persons.map((person) => (person.id !== existingPerson.id ? person : updatedPerson)));
@@ -62,7 +61,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                       }, 3000)
                   })
                   .catch((error) => {
-                      console.error(`Error updating person:${error.response.data.error}`);
+                      console.error(`Error updating person:${error.response.person.error}`);
                       setNotification(`${newName} has already been removed from server`);
                       setNotificationType('error');
                       setTimeout(() => {
@@ -77,7 +76,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                   number: newPhone,
               }
 
-              dataService.create(personObject).then(response => {
+              personService.create(personObject).then(response => {
                   setPersons(persons.concat(response))
                   setNewName('')
                   setNewPhone('')
@@ -90,7 +89,7 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
                   }, 3000)
               }).catch((error) => {
                   
-                  setNotification(`Added ${newName} failed: ${error.response.data.error}`);
+                  setNotification(`Added ${newName} failed: ${error.response.person.error}`);
                   setNotificationType('error');
                   setTimeout(() => {
                       setNotification(null);
@@ -123,14 +122,14 @@ const PersonForm = ({ newName, newPhone, persons, notification, notificationType
 }
 const Persons = ({ newFilterName, setPersons, persons, notification, notificationType, setNotification, setNotificationType }) => {
   React.useEffect(() => {
-    dataService.getAll().then((response) => {
+    personService.getAll().then((response) => {
       setPersons(response);
     });
   }, [setPersons]);
 
   const handleDelete = (id) => {
     if (window.confirm(`Are you sure you want to delete this person`)) {
-      dataService
+      personService
         .deletePerson(id)
         .then(() => {
           setPersons(persons.filter((person) => person.id !== id));
@@ -193,7 +192,7 @@ const App =
     const [notificationType, setNotificationType] = useState(null);
     useEffect(() => {
       console.log('effect')
-      dataService.getAll().then(response => {
+      personService.getAll().then(response => {
         console.log('promise fulfilled')
         setPersons(response)
       })
