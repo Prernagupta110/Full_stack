@@ -1,39 +1,28 @@
-const mongoose = require("mongoose")
+import axios from 'axios'
+const baseUrl = 'http://localhost:3001/api/persons'
 
-const url = process.env.MONGODB_URI
+const getAll = () => {
+    const request = axios.get(baseUrl)
+    return request.then(response => response.data)
+  }
 
-console.log("connecting to", url)
-mongoose.connect(url)
-    .then(result => { console.log("connected to MongoDB") })
-    .catch(
-        (error) => { console.log("error connecting to MongoDB:", error.message) })
-mongoose.set("strictQuery", false)
-mongoose.connect(url)
+const create = newObject => {
+    const request = axios.post(baseUrl, newObject)
+    return request.then(response => response.data)
+  }
 
-const personSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        minlength: 3,
-    },
-    number: {
-        type: String,
-        required: true,
-        validate: {
-            validator: (value) => {
-                const phoneRegex = /^(\d{2,3})-(\d+)$/
-                return phoneRegex.test(value)
-            },
-            message: "Invalid phone number format. Use the format XX-XXXXXXXX or XXX-XXXXXXXX.",
-        },
-    },
-})
-personSchema.set("toJSON", {
-    transform: (document, returnedObject) => {
-        returnedObject.id = returnedObject._id.toString()
-        delete returnedObject._id
-        delete returnedObject.__v
-    }
-})
+const deletePerson = (id) => {
+  const request = axios.delete(`${baseUrl}/${id}`);
+  return request.then((response) => response.data);
+};
 
-module.exports = mongoose.model("phonebook", personSchema)
+const update = (id, newObject) => {
+  const request = axios.put(`${baseUrl}/${id}`, newObject)
+  return request.then(response => response.data)
+}
+export default { 
+    getAll, 
+    create,
+    deletePerson, 
+    update
+}
