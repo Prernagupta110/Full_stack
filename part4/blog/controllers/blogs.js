@@ -1,89 +1,70 @@
-// 4.1 post and get run successful
-const blogRouter = require('express').Router()
-const middleware = require('../utils/middleware');
-
-
+// controllers/blogs.js
+const jwt = require('jsonwebtoken')
+const blogsRouter = require('express').Router()
 const Blog = require('../models/blog')
-const User = require('../models/user')
-// const jwt = require('jsonwebtoken')
+const { userExtractor } = require('../utils/middleware')
 
+blogsRouter.get('/', async (request, response) => {
+    const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 })
+    response.json(blogs)
+  })
 
-
-// 4.8 refactor router to use async/await
-blogRouter.get('/', async (request, response, next) => {
-  try {
-    // 4.17 Modify listing all blogs so that the creator's user information is
-    // displayed with the blog
-    const blogs = await Blog.find({}).populate('user');
-    response.json(blogs);
-  } catch (error) {
-    next(error);
-  }
-  // Blog.find({}).then(blogs => { response.json(blogs) })
-});
-
-blogRouter.post('/', async (request, response, next) => {
-  try {
-    // 4.19 it is only possible if a valid token is sent with the HTTP POST
-    // request
-    const user = request.user;
-    if (!user) {
-      return response.status(401).json({error: 'Token invalid'});
+  blogsRouter.post('/', userExtractor, async (request, response) => {
+    const user = request.user
+    const body = request.body
+    const decodedToken = jwt.verify(request.token, process.env.SECRET)
+    if (!decodedToken.id) {
+      return response.status(401).json({ error: 'token missing or invalid' })
     }
-    // 4.17 any user from the database is designated as its creator
+    // const user = await User.findById(decodedToken.id)
+  
     const blog = new Blog({
-      ...request.body,
-      user: user.id,
-    });
+      title: body.title,
+      author: body.author,
+      url: body.url,
+      likes: body.likes || 0,
+      user: user._id
+    })
+  
+    const savedBlog = await blog.save()
+    user.blogs = user.blogs.concat(savedBlog._id)
+    await user.save()
+  
+    response.status(201).json(savedBlog)
+  })
 
-    const savedBlog = await blog.save();
-    await savedBlog.populate('user');
-
-    response.status(201).json(savedBlog);
-  } catch (error) {
-    next(error);
+  blogsRouter.delete('/:id', userExtractor, async (request, response) => {
+    const user = request.user
+  const decodedToken = jwt.verify(request.token, process.env.SECRET)
+  if (!decodedToken.id) {
+    return response.status(401).json({ error: 'token missing or invalid' })
   }
-});
 
-// 4.13 delete a post
-blogRouter.delete('/:id', async (request, response, next) => {
-  try {
-    // 4.21 blog can be deleted only by the user who added the blog
-    const user = request.user;
-
-    const blogId = request.params.id;
-    const blogToDelete = await Blog.findById(blogId);
-    if (!blogToDelete) {
-      return response.status(404).json({error: 'Blog not found'});
-    }
-    if (blogToDelete.user.toString() !== user.id.toString()) {
-      return response.status(403).json({error: 'Permission denied'});
-    }
-
-    const deletedBlog = await Blog.findByIdAndRemove(blogId);
-    if (!deletedBlog) {
-      return response.status(404).json({error: 'Blog not found'});
-    }
-    response.status(204).end();
-  } catch (error) {
-    next(error);
+  const blog = await Blog.findById(request.params.id)
+  if (!blog) {
+    return response.status(404).json({ error: 'blog not found' })
   }
-});
 
-// 4.14 update a post
-blogRouter.put('/:id', async (request, response, next) => {
-  try {
-    const blogId = request.params.id;
-    const blogNew = request.body;
-    const updatedBlog = await Blog.findByIdAndUpdate(
-        blogId, blogNew, {new: true, runValidators: true});
-    if (!updatedBlog) {
-      return response.status(404).json({error: 'Blog not found'});
-    }
-    response.status(201).json(updatedBlog);
-  } catch (error) {
-    next(error);
+  if (blog.user.toString() !== user._id.toString()) {
+    return response.status(403).json({ error: 'only the creator can delete a blog' })
   }
-});
 
-module.exports = blogRouter
+  await Blog.findByIdAndRemove(request.params.id)
+  response.status(204).end()
+})
+
+blogsRouter.put('/:id', async (request, response) => {
+  const body = request.body
+
+  const blog = {
+    title: body.title,
+    author: body.author,
+    url: body.url,
+    likes: body.likes
+  }
+
+  const updatedBlog = await Blog.findByIdAndUpdate(request.params.id, blog, { new: true })
+  response.json(updatedBlog)
+})
+
+module.exports = blogsRouter

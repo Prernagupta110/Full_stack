@@ -1,199 +1,185 @@
+// tests/blog_api.test.js
+
+const { test, after, beforeEach } = require('node:test')
+const assert = require('node:assert')
 const mongoose = require('mongoose')
 const supertest = require('supertest')
 const app = require('../app')
-
+const Blog = require('../models/blog')
+const helper = require('./test_helper')
 const api = supertest(app)
+const User = require('../models/user')
+const jwt = require('jsonwebtoken')
 
-beforeAll(async () => {
-  // Create a test user
-  const testUser = {
-    username: 'testuser',
-    name: 'Test User',
-    password: 'testpassword',
-  };
+let token = null
 
-  await api.post('/api/users').send(testUser);
-
-  // Get the token for the test user
-  const response = await api.post('/api/login').send({
-    username: 'testuser',
-    password: 'testpassword',
-  });
-
-  testToken = `Bearer ${response.body.token}`;
-  //   console.log(testToken)
-});
-
-// 4.8 blog returns as json
-test(
-    'blogs are returned as json',
-    async () => {await api.get('/api/blogs')
-                     .expect(200)
-                     .expect('Content-Type', /application\/json/)})
-
-// 4.9 unique identifier property of the blog posts is named id
-test('blog has property id but not _id', async () => {
-  const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
+const initialBlogs = [
+  {
+    title: 'React patterns',
+    author: 'Michael Chan',
+    url: 'https://reactpatterns.com/',
+    likes: 7,
+  },
+  {
+    title: 'Go To Statement Considered Harmful',
+    author: 'Edsger W. Dijkstra',
+    url: 'http://www.u.arizona.edu/~rubinson/copyright_violations/Go_To_Considered_Harmful.html',
     likes: 5,
-  };
+  },
+]
 
-  const response = await api.post('/api/blogs')
-                       .set('Authorization', testToken)
-                       .send(newBlog);
-  expect(response.status).toBe(201);
-  const createdBlog = response.body;
-  expect(createdBlog.id).toBeDefined();
-  expect(createdBlog._id).toBeUndefined();
-});
+beforeEach(async () => {
+  await Blog.deleteMany({})
+  await User.deleteMany({})
+  await Blog.insertMany(initialBlogs)
 
-// 4.10 Post to successfully creates a new blog post
-test('blog is successfully stored', async () => {
+  const user = await helper.createUser()
+  const userForToken = {
+    username: user.username,
+    id: user._id,
+  }
+  token = jwt.sign(userForToken, process.env.SECRET)
+
+  const blogObjects = helper.initialBlogs
+    .map(blog => new Blog({ ...blog, user: user._id }))
+  await Blog.insertMany(blogObjects)
+})
+
+test('blogs are returned as json', async () => {
+  await api
+    .get('/api/blogs')
+    .expect(200)
+    .expect('Content-Type', /application\/json/)
+})
+
+test('all blogs are returned', async () => {
+  const response = await api.get('/api/blogs')
+
+  assert.strictEqual(response.body.length, initialBlogs.length)
+})
+
+test('a specific blog is within the returned blogs', async () => {
+  const response = await api.get('/api/blogs')
+
+  const titles = response.body.map(r => r.title)
+  assert(titles.includes('React patterns'))
+})
+
+test('the unique identifier property of the blog posts is named id', async () => {
+  const response = await api.get('/api/blogs')
+
+  assert(response.body[0].id)
+  assert(!response.body[0]._id)
+})
+
+test('a valid blog can be added', async () => {
   const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-    likes: 5,
-  };
+    title: 'Async/Await Simplifies Making Asynchronous Calls',
+    author: 'John Doe',
+    url: 'http://example.com/async-await',
+    likes: 10,
+  }
 
-  const Blogs = await api.get('/api/blogs');
-  const BlogCount = Blogs.body.length;
-  const response = await api.post('/api/blogs')
-                       .set('Authorization', testToken)
-                       .send(newBlog);
-  //   const response = await api.post('/api/blogs').send(newBlog);
-  expect(response.status).toBe(201);
-  const BlogsNew = await api.get('/api/blogs');
-  BlogCountNew = BlogsNew.body.length;
-  expect(BlogCountNew).toBe(BlogCount + 1);
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
 
-  const createdBlog = response.body;
-  const {id, user, ...blogWithoutId} = createdBlog;
-  expect(blogWithoutId).toEqual({
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-    likes: 5,
-  });
-});
-// 4.11 if the likes property is missing from the request, it will default to
-// the value 0
-test('Missing like value give default 0', async () => {
+  const response = await api.get('/api/blogs')
+
+  const titles = response.body.map(r => r.title)
+
+  assert.strictEqual(response.body.length, initialBlogs.length + 1)
+  assert(titles.includes('Async/Await Simplifies Making Asynchronous Calls'))
+})
+
+test('if likes property is missing, it defaults to 0', async () => {
   const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-  };
+    title: 'Test blog without likes',
+    author: 'Jane Doe',
+    url: 'http://example.com/test',
+  }
 
-  const response = await api.post('/api/blogs')
-                       .set('Authorization', testToken)
-                       .send(newBlog);
-  expect(response.status).toBe(201);
-  const createdBlog = response.body;
-  expect(createdBlog.likes).toBe(0);
-});
+  const response = await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
 
+  assert.strictEqual(response.body.likes, 0)
+})
 
-// 4. 12 if the title or url properties are missing, return 404
-test('Missing url/title return 404', async () => {
-  const newBlogWithoutTitle = {
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-    likes: 5,
-  };
-  const newBlogWithoutUrl = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    likes: 6,
-  };
-
-  const response1 = await api.post('/api/blogs')
-                        .set('Authorization', testToken)
-                        .send(newBlogWithoutTitle);
-  expect(response1.status).toBe(400);
-  const response2 = await api.post('/api/blogs')
-                        .set('Authorization', testToken)
-                        .send(newBlogWithoutUrl);
-  expect(response2.status).toBe(400);
-});
-
-// 4.13 delete a post
-test('Delete a post', async () => {
+test('blog without title is not added', async () => {
   const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-  };
+    author: 'John Doe',
+    url: 'http://example.com/no-title',
+  }
 
-  const response = await api.post('/api/blogs')
-                       .set('Authorization', testToken)
-                       .send(newBlog);
-  expect(response.status).toBe(201);
-  const createdBlog = response.body;
-  const createdBlogID = createdBlog.id;
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(400)
 
-  const deleteResponse = await api.delete(`/api/blogs/${createdBlogID}`)
-                             .set('Authorization', testToken);
-  expect(deleteResponse.status).toBe(204);
+  const response = await api.get('/api/blogs')
 
-  // it is already be deleted, so it cant be successful the second time
-  const deleteNonExistResponse = await api.delete(`/api/blogs/${createdBlogID}`)
-                                     .set('Authorization', testToken);
-  expect(deleteNonExistResponse.status).toBe(404);
-});
+  assert.strictEqual(response.body.length, initialBlogs.length)
+})
 
-
-// 4.14 update a post
-test('Update a post', async () => {
+test('blog without url is not added', async () => {
   const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-  };
+    title: 'Test blog without URL',
+    author: 'Jane Doe',
+  }
 
-  const response = await api.post('/api/blogs')
-                       .set('Authorization', testToken)
-                       .send(newBlog);
-  expect(response.status).toBe(201);
-  const createdBlog = response.body;
-  const createdBlogID = createdBlog.id;
+  await api
+    .post('/api/blogs')
+    .send(newBlog)
+    .expect(400)
 
+  const response = await api.get('/api/blogs')
 
-  const updateBlog = {
-    title: 'BlogByZhong',
-    author: 'Zhong',
-    url: 'http://zhong.com/blog1',
-    likes: 100,
-  };
-  const updateResponse =
-      await api.put(`/api/blogs/${createdBlogID}`).send(updateBlog);
-  const {id, user, ...blogWithoutId} = updateResponse.body;
-  expect(blogWithoutId).toStrictEqual({
-    title: 'BlogByZhong',
-    author: 'Zhong',
-    url: 'http://zhong.com/blog1',
-    likes: 100,
-  });
-});
-
-
-// 4.23 dding a blog fails with the proper status code 401 Unauthorized if a
-// token is not provided.
-
-test('blog post fails without token', async () => {
-  const newBlog = {
-    title: 'BlogByXie',
-    author: 'Xie',
-    url: 'http://xie.com/blog1',
-    likes: 5,
-  };
-
-  const response = await api.post('/api/blogs').send(newBlog);
-
-  expect(response.status).toBe(401);
-  expect(response.body.error).toBe('Token invalid');
-});
-
-afterAll(async () => {await mongoose.connection.close()})
+  assert.strictEqual(response.body.length, initialBlogs.length)
+})
+test('a blog can be deleted', async () => {
+    const blogsAtStart = await api.get('/api/blogs')
+    const blogToDelete = blogsAtStart.body[0]
+  
+    await api
+      .delete(`/api/blogs/${blogToDelete.id}`)
+      .expect(204)
+  
+    const blogsAtEnd = await api.get('/api/blogs')
+  
+    assert.strictEqual(blogsAtEnd.body.length, initialBlogs.length - 1)
+  
+    const titles = blogsAtEnd.body.map(r => r.title)
+  
+    assert(!titles.includes(blogToDelete.title))
+  })
+  
+  test('a blog can be updated', async () => {
+    const blogsAtStart = await api.get('/api/blogs')
+    const blogToUpdate = blogsAtStart.body[0]
+  
+    const updatedBlog = {
+      ...blogToUpdate,
+      likes: blogToUpdate.likes + 1
+    }
+  
+    await api
+      .put(`/api/blogs/${blogToUpdate.id}`)
+      .send(updatedBlog)
+      .expect(200)
+  
+    const blogsAtEnd = await api.get('/api/blogs')
+    const updatedBlogInDb = blogsAtEnd.body.find(blog => blog.id === blogToUpdate.id)
+  
+    assert.strictEqual(updatedBlogInDb.likes, blogToUpdate.likes + 1)
+  })
+after(async () => {
+  await mongoose.connection.close()
+})
+afterAll(() => {
+  mongoose.connection.close()
+})
